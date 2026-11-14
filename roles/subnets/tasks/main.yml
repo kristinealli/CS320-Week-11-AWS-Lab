@@ -1,0 +1,40 @@
+---
+- name: Create public subnet
+  amazon.aws.ec2_vpc_subnet:
+    state: present
+    vpc_id: "{{ vpc_id }}"
+    cidr: "{{ public_subnet_cidr }}"
+    region: "{{ aws_region }}"
+    az: "{{ aws_region }}a"
+    map_public: true
+    tags:
+      Name: "{{ public_subnet_name }}"
+      Project: Week11-Ansible-Lab
+  register: public_subnet_result
+
+- name: Save public subnet ID
+  ansible.builtin.set_fact:
+    public_subnet_id: "{{ public_subnet_result.subnet.id }}"
+
+- name: Create private subnet
+  amazon.aws.ec2_vpc_subnet:
+    state: present
+    vpc_id: "{{ vpc_id }}"
+    cidr: "{{ private_subnet_cidr }}"
+    region: "{{ aws_region }}"
+    az: "{{ aws_region }}b"
+    map_public: false
+    tags:
+      Name: "{{ private_subnet_name }}"
+      Project: Week11-Ansible-Lab
+  register: private_subnet_result
+
+- name: Save private subnet ID
+  ansible.builtin.set_fact:
+    private_subnet_id: "{{ private_subnet_result.subnet.id }}"
+
+- name: Display subnet information
+  ansible.builtin.debug:
+    msg:
+      - "Public subnet: {{ public_subnet_id }}"
+      - "Private subnet: {{ private_subnet_id }}"
