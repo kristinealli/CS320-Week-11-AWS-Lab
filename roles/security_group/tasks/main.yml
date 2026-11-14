@@ -1,0 +1,51 @@
+---
+- name: Validate restricted SSH source
+  ansible.builtin.assert:
+    that:
+      - ssh_allowed_cidr is defined
+      - ssh_allowed_cidr is match('^(?:(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])/32$')
+      - ssh_allowed_cidr != '0.0.0.0/32'
+    fail_msg: "Configure ssh_allowed_cidr with your public IPv4/32."
+
+- name: Create web server security group
+  amazon.aws.ec2_security_group:
+    name: "{{ security_group_name }}"
+    description: Security group for future web server
+    vpc_id: "{{ vpc_id }}"
+    region: "{{ aws_region }}"
+    state: present
+    tags:
+      Name: "{{ security_group_name }}"
+      Project: Week11-Ansible-Lab
+
+    rules:
+      - proto: tcp
+        from_port: 80
+        to_port: 80
+        cidr_ip: 0.0.0.0/0
+        rule_desc: Allow HTTP
+
+      - proto: tcp
+        from_port: 443
+        to_port: 443
+        cidr_ip: 0.0.0.0/0
+        rule_desc: Allow HTTPS
+
+      - proto: tcp
+        from_port: 22
+        to_port: 22
+        cidr_ip: "{{ ssh_allowed_cidr }}"
+        rule_desc: Restricted SSH
+
+    rules_egress:
+      - proto: -1
+        cidr_ip: 0.0.0.0/0
+
+  register: security_group_result
+
+- name: Display security group information
+  ansible.builtin.debug:
+    msg:
+      - "Security group ID: {{ security_group_result.group_id }}"
+      - "Security group name: {{ security_group_name }}"
+      - "SSH allowed from: {{ ssh_allowed_cidr }}"
