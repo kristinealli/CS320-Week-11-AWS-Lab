@@ -1,0 +1,7 @@
+.venv/
+.env
+.aws/
+.vault-password
+*.pem
+__pycache__/
+.DS_Store

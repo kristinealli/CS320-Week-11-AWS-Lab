@@ -1,0 +1,25 @@
+---
+- name: Create AWS VPC
+  amazon.aws.ec2_vpc_net:
+    name: "{{ vpc_name }}"
+    cidr_block: "{{ vpc_cidr }}"
+    region: "{{ aws_region }}"
+    dns_support: true
+    dns_hostnames: true
+    tenancy: default
+    state: present
+    tags:
+      Name: "{{ vpc_name }}"
+      Project: Week11-Ansible-Lab
+  register: vpc_result
+
+- name: Save VPC ID
+  ansible.builtin.set_fact:
+    vpc_id: "{{ vpc_result.vpc.id }}"
+
+- name: Display VPC information
+  ansible.builtin.debug:
+    msg:
+      - "VPC ID: {{ vpc_id }}"
+      - "CIDR: {{ vpc_cidr }}"
+      - "Region: {{ aws_region }}"
