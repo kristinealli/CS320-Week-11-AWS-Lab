@@ -1,0 +1,51 @@
+---
+- name: Create and attach internet gateway
+  amazon.aws.ec2_vpc_igw:
+    vpc_id: "{{ vpc_id }}"
+    region: "{{ aws_region }}"
+    state: present
+    tags:
+      Name: "{{ internet_gateway_name }}"
+      Project: Week11-Ansible-Lab
+  register: igw_result
+
+- name: Save internet gateway ID
+  ansible.builtin.set_fact:
+    igw_id: "{{ igw_result.gateway_id }}"
+
+- name: Create public route table
+  amazon.aws.ec2_vpc_route_table:
+    vpc_id: "{{ vpc_id }}"
+    region: "{{ aws_region }}"
+    state: present
+    lookup: tag
+    tags:
+      Name: "{{ public_route_table_name }}"
+      Project: Week11-Ansible-Lab
+    subnets:
+      - "{{ public_subnet_id }}"
+    routes:
+      - dest: 0.0.0.0/0
+        gateway_id: "{{ igw_id }}"
+  register: public_rt_result
+
+- name: Create private route table
+  amazon.aws.ec2_vpc_route_table:
+    vpc_id: "{{ vpc_id }}"
+    region: "{{ aws_region }}"
+    state: present
+    lookup: tag
+    tags:
+      Name: "{{ private_route_table_name }}"
+      Project: Week11-Ansible-Lab
+    subnets:
+      - "{{ private_subnet_id }}"
+    routes: []
+  register: private_rt_result
+
+- name: Display network routing information
+  ansible.builtin.debug:
+    msg:
+      - "Internet gateway: {{ igw_id }}"
+      - "Public route table: {{ public_rt_result.route_table.id }}"
+      - "Private route table: {{ private_rt_result.route_table.id }}"
