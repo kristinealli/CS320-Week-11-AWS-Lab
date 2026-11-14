@@ -1,0 +1,165 @@
+---
+- name: Safely remove Week 11 AWS network
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
+    lab_project_tag: Week11-Ansible-Lab
+
+  tasks:
+    - name: Require explicit authorization and expected settings
+      ansible.builtin.assert:
+        that:
+          - confirm_destroy | default(false) | bool
+          - aws_region == 'us-east-2'
+          - expected_aws_account_id is defined
+          - expected_aws_account_id | string is match('^[0-9]{12}$')
+        fail_msg: "STOP - Confirm the region/account and pass -e confirm_destroy=true."
+
+    - name: Identify authenticated AWS account
+      amazon.aws.aws_caller_info:
+      register: caller
+
+    - name: Prevent deletion in the wrong account
+      ansible.builtin.assert:
+        that:
+          - caller.account | string == expected_aws_account_id | string
+        fail_msg: "STOP - Wrong AWS account."
+
+    - name: Discover tagged lab VPC
+      amazon.aws.ec2_vpc_net_info:
+        region: "{{ aws_region }}"
+        filters:
+          "tag:Name": "{{ vpc_name }}"
+          "tag:Project": "{{ lab_project_tag }}"
+      register: vpcs_found
+
+    - name: Validate lab VPC
+      ansible.builtin.assert:
+        that:
+          - vpcs_found.vpcs | length == 1
+          - vpcs_found.vpcs[0].cidr_block == vpc_cidr
+          - not (vpcs_found.vpcs[0].is_default | bool)
+        fail_msg: "STOP - Expected one non-default lab VPC with the correct CIDR."
+
+    - name: Save VPC ID
+      ansible.builtin.set_fact:
+        lab_vpc_id: "{{ vpcs_found.vpcs[0].vpc_id }}"
+
+    - name: Discover VPC subnets
+      amazon.aws.ec2_vpc_subnet_info:
+        region: "{{ aws_region }}"
+        filters:
+          vpc-id: "{{ lab_vpc_id }}"
+      register: subnets_found
+
+    - name: Discover VPC route tables
+      amazon.aws.ec2_vpc_route_table_info:
+        region: "{{ aws_region }}"
+        filters:
+          vpc-id: "{{ lab_vpc_id }}"
+      register: routes_found
+
+    - name: Discover VPC security groups
+      amazon.aws.ec2_security_group_info:
+        region: "{{ aws_region }}"
+        filters:
+          vpc-id: "{{ lab_vpc_id }}"
+      register: groups_found
+
+    - name: Discover attached internet gateways
+      amazon.aws.ec2_vpc_igw_info:
+        region: "{{ aws_region }}"
+        filters:
+          attachment.vpc-id: "{{ lab_vpc_id }}"
+      register: gateways_found
+
+    - name: Identify expected lab resources
+      ansible.builtin.set_fact:
+        public_subnets: "{{ subnets_found.subnets | selectattr('cidr_block', 'equalto', public_subnet_cidr) | list }}"
+        private_subnets: "{{ subnets_found.subnets | selectattr('cidr_block', 'equalto', private_subnet_cidr) | list }}"
+        public_tables: "{{ routes_found.route_tables | selectattr('tags.Name', 'defined') | selectattr('tags.Name', 'equalto', public_route_table_name) | list }}"
+        private_tables: "{{ routes_found.route_tables | selectattr('tags.Name', 'defined') | selectattr('tags.Name', 'equalto', private_route_table_name) | list }}"
+        web_groups: "{{ groups_found.security_groups | selectattr('group_name', 'equalto', security_group_name) | list }}"
+
+    - name: Verify exactly the expected resources before deleting anything
+      ansible.builtin.assert:
+        that:
+          - subnets_found.subnets | length == 2
+          - routes_found.route_tables | length == 3
+          - groups_found.security_groups | length == 2
+          - gateways_found.internet_gateways | length == 1
+          - public_subnets | length == 1
+          - private_subnets | length == 1
+          - public_tables | length == 1
+          
+    
+    # PHASE 3: Delete verified resources
+
+    - name: Show resource identities selected for deletion
+      ansible.builtin.debug:
+        msg:
+          - "VPC: {{ lab_vpc_id }}"
+          - "Security group: {{ web_groups[0].group_id }}"
+          - "Public route table: {{ public_tables[0].route_table_id }}"
+          - "Private route table: {{ private_tables[0].route_table_id }}"
+          - "Internet gateway: {{ gateways_found.internet_gateways[0].internet_gateway_id }}"
+
+    - name: Delete lab web security group
+      amazon.aws.ec2_security_group:
+        group_id: "{{ web_groups[0].group_id }}"
+        region: "{{ aws_region }}"
+        state: absent
+
+    - name: Delete lab subnets
+      amazon.aws.ec2_vpc_subnet:
+        vpc_id: "{{ lab_vpc_id }}"
+        cidr: "{{ item }}"
+        region: "{{ aws_region }}"
+        state: absent
+      loop:
+        - "{{ public_subnet_cidr }}"
+        - "{{ private_subnet_cidr }}"
+
+    - name: Delete custom route tables
+      amazon.aws.ec2_vpc_route_table:
+        vpc_id: "{{ lab_vpc_id }}"
+        route_table_id: "{{ item }}"
+        lookup: id
+        region: "{{ aws_region }}"
+        state: absent
+      loop:
+        - "{{ public_tables[0].route_table_id }}"
+        - "{{ private_tables[0].route_table_id }}"
+
+    - name: Delete internet gateway
+      amazon.aws.ec2_vpc_igw:
+        internet_gateway_id: "{{ gateways_found.internet_gateways[0].internet_gateway_id }}"
+        vpc_id: "{{ lab_vpc_id }}"
+        region: "{{ aws_region }}"
+        state: absent
+
+    - name: Delete lab VPC
+      amazon.aws.ec2_vpc_net:
+        vpc_id: "{{ lab_vpc_id }}"
+        region: "{{ aws_region }}"
+        state: absent
+
+    # PHASE 4: Verify removal
+
+    - name: Verify lab VPC no longer exists
+      amazon.aws.ec2_vpc_net_info:
+        region: "{{ aws_region }}"
+        filters:
+          "tag:Name": "{{ vpc_name }}"
+          "tag:Project": "{{ lab_project_tag }}"
+      register: remaining
+
+    - name: Confirm cleanup
+      ansible.builtin.assert:
+        that:
+          - remaining.vpcs | length == 0
+        success_msg: "PASS - Week 11 lab VPC removed."
+        fail_msg: "FAIL - Lab VPC still exists."

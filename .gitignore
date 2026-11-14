@@ -1,7 +1,16 @@
-.venv/
-.env
 .aws/
-.vault-password
-*.pem
 __pycache__/
 .DS_Store
+
+
+# Local environment configuration
+local_vars.yml
+
+# Python environment
+.venv/
+
+# Credentials and secrets
+.env
+.vault-password
+*.pem
+.log

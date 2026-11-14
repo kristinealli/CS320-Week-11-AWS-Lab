@@ -1,0 +1,54 @@
+
+---
+- name: Test AWS deployment idempotence
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: Create evidence directory
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/evidence"
+        state: directory
+        mode: "0755"
+
+    - name: Run deployment
+      ansible.builtin.command:
+        cmd: ansible-playbook -i localhost, site.yml -e @local_vars.yml
+        chdir: "{{ playbook_dir }}"
+      register: deployment
+      changed_when: false
+      failed_when: false
+
+    - name: Save deployment log
+      ansible.builtin.copy:
+        content: "{{ deployment.stdout }}\n{{ deployment.stderr }}\n"
+        dest: "{{ playbook_dir }}/evidence/deployment.log"
+        mode: "0644"
+
+    - name: Run deployment again
+      ansible.builtin.command:
+        cmd: ansible-playbook -i localhost, site.yml -e @local_vars.yml
+        chdir: "{{ playbook_dir }}"
+      register: second_run
+      changed_when: false
+      failed_when: false
+      when: deployment.rc == 0
+
+    - name: Save idempotence log
+      ansible.builtin.copy:
+        content: "{{ second_run.stdout }}\n{{ second_run.stderr }}\n"
+        dest: "{{ playbook_dir }}/evidence/idempotence.log"
+        mode: "0644"
+      when: deployment.rc == 0
+
+    - name: Confirm idempotence
+      ansible.builtin.assert:
+        that:
+          - deployment.rc == 0
+          - second_run.rc == 0
+          - second_run.stdout is search('changed=0')
+          - second_run.stdout is search('failed=0')
+          - second_run.stdout is search('unreachable=0')
+        success_msg: "PASS - Second deployment made no changes."
+        fail_msg: "FAIL - Review evidence logs for errors or changes."

@@ -11,3 +11,4 @@
     - vpc
     - subnets
     - gateway
+    - security_group

@@ -1,0 +1,107 @@
+
+PLAY [Safely remove Week 11 AWS network] ***************************************
+
+TASK [Require explicit authorization and expected settings] ********************
+tee: evidence/destroy.log: Operation timed out
+ok: [localhost] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [Identify authenticated AWS account] **************************************
+tee: evidence/destroy.log: Operation timed out
+ok: [localhost]
+
+TASK [Prevent deletion in the wrong account] ***********************************
+tee: evidence/destroy.log: Operation timed out
+ok: [localhost] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [Discover tagged lab VPC] *************************************************
+tee: evidence/destroy.log: Operation timed out
+ok: [localhost]
+
+TASK [Validate lab VPC] ********************************************************
+tee: evidence/destroy.log: Operation timed out
+ok: [localhost] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [Save VPC ID] *************************************************************
+tee: evidence/destroy.log: Operation timed out
+ok: [localhost]
+
+TASK [Discover VPC subnets] ****************************************************
+tee: evidence/destroy.log: Operation timed out
+ok: [localhost]
+
+TASK [Discover VPC route tables] ***********************************************
+tee: evidence/destroy.log: Operation timed out
+ok: [localhost]
+
+TASK [Discover VPC security groups] ********************************************
+tee: evidence/destroy.log: Operation timed out
+ok: [localhost]
+
+TASK [Discover attached internet gateways] *************************************
+tee: evidence/destroy.log: Operation timed out
+ok: [localhost]
+
+TASK [Identify expected lab resources] *****************************************
+tee: evidence/destroy.log: Operation timed out
+ok: [localhost]
+
+TASK [Verify exactly the expected resources before deleting anything] **********
+tee: evidence/destroy.log: Operation timed out
+ok: [localhost] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [Show resource identities selected for deletion] **************************
+tee: evidence/destroy.log: Operation timed out
+ok: [localhost] => {
+    "msg": [
+        "VPC: vpc-0e75c5adc9a3f2eb1",
+        "Security group: sg-05767987f0a0cbc52",
+        "Public route table: rtb-0128470201ccad478",
+        "Private route table: rtb-0d2875b8172782c5c",
+        "Internet gateway: igw-07a32a019d9ade4a2"
+    ]
+}
+
+TASK [Delete lab web security group] *******************************************
+tee: evidence/destroy.log: Operation timed out
+changed: [localhost]
+
+TASK [Delete lab subnets] ******************************************************
+tee: evidence/destroy.log: Operation timed out
+changed: [localhost] => (item=10.0.1.0/24)
+changed: [localhost] => (item=10.0.2.0/24)
+
+TASK [Delete custom route tables] **********************************************
+tee: evidence/destroy.log: Operation timed out
+changed: [localhost] => (item=rtb-0128470201ccad478)
+changed: [localhost] => (item=rtb-0d2875b8172782c5c)
+
+TASK [Delete internet gateway] *************************************************
+tee: evidence/destroy.log: Operation timed out
+changed: [localhost]
+
+TASK [Delete lab VPC] **********************************************************
+tee: evidence/destroy.log: Operation timed out
+changed: [localhost]
+
+TASK [Verify lab VPC no longer exists] *****************************************
+tee: evidence/destroy.log: Operation timed out
+ok: [localhost]
+
+TASK [Confirm cleanup] *********************************************************
+tee: evidence/destroy.log: Operation timed out
+ok: [localhost] => {
+    "changed": false,
+    "msg": "PASS - Week 11 lab VPC removed."
+}
